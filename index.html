@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Flexible Calendar with Expandable Sleep Data</title>
+  <style>
+    /* Basic reset */
+    * {
+      box-sizing: border-box;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      height: 100%;
+    }
+    /* Calendar container */
+    .calendar-container {
+      height: 100vh;
+      overflow-x: auto;
+      background: #f8f9fa;
+    }
+    /* Calendar grid: header row with plus sign cells and date headers */
+    .calendar-grid {
+      display: grid;
+      align-items: center;
+      /* grid-template-columns will be set dynamically */
+    }
+    /* Header cell for dates and plus signs */
+    .header {
+      background: #4285f4;
+      color: #fff;
+      text-align: center;
+      line-height: 50px;
+      font-weight: bold;
+      border: 1px solid #4285f4;
+      cursor: pointer;
+      user-select: none;
+      min-width: 80px;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Sticky header row */
+    .day-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    /* Style for current date column */
+    .current-date {
+      background: #cccccc;
+    }
+    /* Summary text in header cell */
+    .summary {
+      font-size: 10px;
+      margin-top: 5px;
+      color: #fff;
+      background: rgba(0,0,0,0.2);
+      padding: 2px;
+      cursor: pointer;
+    }
+    /* Overlay for sleep data input */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+    .overlay-content {
+      background: #fff;
+      padding: 20px;
+      width: 90%;
+      max-width: 400px;
+      margin: 50px auto;
+      border-radius: 5px;
+    }
+    .overlay-content h2 {
+      margin-top: 0;
+    }
+    .overlay-content label {
+      display: block;
+      margin-top: 10px;
+    }
+    .overlay-content input {
+      width: 100%;
+      padding: 5px;
+      margin-top: 5px;
+    }
+    .overlay-content .btn-group {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+    }
+    .overlay-content button {
+      padding: 10px;
+      width: 48%;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="calendar-container">
+    <div class="calendar-grid" id="calendarGrid">
+      <!-- Plus cells and date headers will be generated here -->
+    </div>
+  </div>
+
+  <!-- Overlay form for sleep data input -->
+  <div id="overlayForm" class="overlay">
+    <div class="overlay-content">
+      <h2>Add Sleep Data for <span id="selectedDate"></span></h2>
+      <label for="sleepScore">Sleep Score (1-100):</label>
+      <input type="number" id="sleepScore" min="1" max="100">
+      
+      <label>Deep Sleep Time (in minutes):</label>
+      <input type="text" id="deepSleep" placeholder="e.g., 137">
+      
+      <label>REM Sleep Time (in minutes):</label>
+      <input type="text" id="remSleep" placeholder="e.g., 095">
+      
+      <label>Light Sleep Time (in minutes):</label>
+      <input type="text" id="lightSleep" placeholder="e.g., 210">
+      
+      <label>Awake Time (in minutes):</label>
+      <input type="text" id="awakeTime" placeholder="e.g., 045">
+      
+      <div class="btn-group">
+        <button id="saveBtn">Save</button>
+        <button id="cancelBtn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initial date range: last 14 days and next 4 days
+    let currentDaysBefore = 14;
+    let currentDaysAfter = 4;
+    // Object to store sleep data (keyed by date string)
+    // Data is stored as an object: { score, deep, rem, light, awake }
+    const sleepDataStore = {};
+
+    const calendarGrid = document.getElementById('calendarGrid');
+    const today = new Date();
+    const todayString = today.toDateString();
+
+    // Overlay elements
+    const overlay = document.getElementById('overlayForm');
+    const selectedDateSpan = document.getElementById('selectedDate');
+    const sleepScoreInput = document.getElementById('sleepScore');
+    const deepSleepInput = document.getElementById('deepSleep');
+    const remSleepInput = document.getElementById('remSleep');
+    const lightSleepInput = document.getElementById('lightSleep');
+    const awakeTimeInput = document.getElementById('awakeTime');
+    const saveBtn = document.getElementById('saveBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    let currentEditingDate = null; // store the date being edited
+
+    function renderCalendar() {
+      // Clear the grid
+      calendarGrid.innerHTML = '';
+      // Calculate number of date headers = currentDaysBefore + currentDaysAfter + 1
+      const numDateHeaders = currentDaysBefore + currentDaysAfter + 1;
+      // Total columns = date headers + 2 (for plus cells at start and end)
+      const totalColumns = numDateHeaders + 2;
+      const cellWidth = 80; // fixed width per cell
+      let columns = '';
+      for (let i = 0; i < totalColumns; i++) {
+        columns += `${cellWidth}px `;
+      }
+      calendarGrid.style.gridTemplateColumns = columns;
+
+      // Create the "Load More Past" plus cell on the left
+      const pastPlusCell = document.createElement('div');
+      pastPlusCell.className = 'header day-header';
+      pastPlusCell.innerText = '+';
+      pastPlusCell.title = "Load More Past Dates";
+      pastPlusCell.addEventListener('click', () => {
+        currentDaysBefore += 7; // increase past range by 7 days
+        renderCalendar();
+      });
+      calendarGrid.appendChild(pastPlusCell);
+
+      // Create date header cells for each day in the range (from -currentDaysBefore to +currentDaysAfter)
+      for (let i = -currentDaysBefore; i <= currentDaysAfter; i++) {
+        let d = new Date();
+        d.setDate(today.getDate() + i);
+        const options = { month: 'short', day: 'numeric' };
+        const formattedDate = d.toLocaleDateString(undefined, options);
+        
+        let headerCell = document.createElement('div');
+        headerCell.className = 'header day-header';
+        headerCell.innerText = formattedDate;
+        headerCell.dataset.date = d.toDateString();
+
+        // Highlight current date column
+        if (d.toDateString() === todayString) {
+          headerCell.classList.add('current-date');
+        }
+        // If there's stored sleep data for this date, add a summary element
+        if (sleepDataStore[d.toDateString()]) {
+          const data = sleepDataStore[d.toDateString()];
+          const summaryDiv = document.createElement('div');
+          summaryDiv.className = 'summary';
+          // Initially show only the score
+          summaryDiv.innerText = "Score: " + data.score;
+          summaryDiv.dataset.expanded = "false";
+          // Toggle full details on click
+          summaryDiv.addEventListener('click', (event) => {
+            event.stopPropagation(); // prevent triggering the header's click event
+            if (summaryDiv.dataset.expanded === "false") {
+              summaryDiv.innerText = `Score: ${data.score} | Deep: ${data.deep} | REM: ${data.rem} | Light: ${data.light} | Awake: ${data.awake}`;
+              summaryDiv.dataset.expanded = "true";
+            } else {
+              summaryDiv.innerText = "Score: " + data.score;
+              summaryDiv.dataset.expanded = "false";
+            }
+          });
+          headerCell.appendChild(summaryDiv);
+        }
+        // Add click listener on the header cell (but not on the summary) to open the sleep data form
+        headerCell.addEventListener('click', () => {
+          openSleepDataForm(d);
+        });
+        calendarGrid.appendChild(headerCell);
+      }
+
+      // Create the "Load More Future" plus cell on the right
+      const futurePlusCell = document.createElement('div');
+      futurePlusCell.className = 'header day-header';
+      futurePlusCell.innerText = '+';
+      futurePlusCell.title = "Load More Future Dates";
+      futurePlusCell.addEventListener('click', () => {
+        currentDaysAfter += 4; // increase future range by 4 days
+        renderCalendar();
+      });
+      calendarGrid.appendChild(futurePlusCell);
+    }
+
+    function openSleepDataForm(dateObj) {
+      currentEditingDate = dateObj.toDateString();
+      selectedDateSpan.innerText = dateObj.toLocaleDateString();
+      // Clear form fields (pre-filling could be added later)
+      sleepScoreInput.value = '';
+      deepSleepInput.value = '';
+      remSleepInput.value = '';
+      lightSleepInput.value = '';
+      awakeTimeInput.value = '';
+      overlay.style.display = 'block';
+    }
+
+    // Custom formatting function:
+    // For a 3-digit input, treat the first digit as hours and the last two as minutes.
+    // For a 4-digit input, treat the first two as hours and the last two as minutes.
+    // For 1 or 2-digit input, assume minutes only.
+    function formatMinutes(inputVal) {
+      if (/^\d+$/.test(inputVal)) {
+        if (inputVal.length === 3) {
+          let h = inputVal.charAt(0);
+          let m = inputVal.slice(1);
+          return `${parseInt(h, 10)}h ${parseInt(m, 10)}m`;
+        } else if (inputVal.length === 4) {
+          let h = inputVal.slice(0, 2);
+          let m = inputVal.slice(2);
+          return `${parseInt(h, 10)}h ${parseInt(m, 10)}m`;
+        } else {
+          return `${parseInt(inputVal, 10)}m`;
+        }
+      }
+      return inputVal;
+    }
+
+    // Attach blur event listeners to auto-format sleep time inputs
+    [deepSleepInput, remSleepInput, lightSleepInput, awakeTimeInput].forEach(input => {
+      input.addEventListener('blur', () => {
+        input.value = formatMinutes(input.value);
+      });
+    });
+
+    // Save sleep data and re-render the calendar
+    saveBtn.addEventListener('click', () => {
+      const sleepScore = sleepScoreInput.value;
+      const deep = deepSleepInput.value;
+      const rem = remSleepInput.value;
+      const light = lightSleepInput.value;
+      const awake = awakeTimeInput.value;
+      
+      // Store data as a structured object instead of a single summary string.
+      sleepDataStore[currentEditingDate] = {
+        score: sleepScore,
+        deep: deep,
+        rem: rem,
+        light: light,
+        awake: awake
+      };
+      overlay.style.display = 'none';
+      renderCalendar();
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      overlay.style.display = 'none';
+    });
+
+    // Initial render
+    renderCalendar();
+  </script>
+</body>
+</html>
