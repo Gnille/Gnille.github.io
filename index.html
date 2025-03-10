@@ -86,7 +86,7 @@
       display: block;
       margin-top: 10px;
     }
-    /* Make input fields bigger and only numeric */
+    /* Bigger numeric input fields */
     .overlay-content input {
       width: 100%;
       padding: 10px;
@@ -143,9 +143,15 @@
     // Initial date range: last 14 days and next 4 days
     let currentDaysBefore = 14;
     let currentDaysAfter = 4;
-    // Object to store sleep data (keyed by date string)
-    // Data is stored as an object: { score, deep, rem, light, awake }
-    const sleepDataStore = {};
+    
+    // Use a variable for sleep data that we'll also store in localStorage.
+    let sleepDataStore = {};
+
+    // Try to load stored sleep data from localStorage, if available.
+    const storedData = localStorage.getItem('sleepDataStore');
+    if (storedData) {
+      sleepDataStore = JSON.parse(storedData);
+    }
 
     const calendarGrid = document.getElementById('calendarGrid');
     const today = new Date();
@@ -286,7 +292,7 @@
       });
     });
 
-    // Save sleep data and re-render the calendar
+    // Save sleep data, store it in localStorage, and re-render the calendar
     saveBtn.addEventListener('click', () => {
       const sleepScore = sleepScoreInput.value;
       const deep = deepSleepInput.value;
@@ -294,7 +300,7 @@
       const light = lightSleepInput.value;
       const awake = awakeTimeInput.value;
       
-      // Store data as a structured object instead of a single summary string.
+      // Store data as a structured object.
       sleepDataStore[currentEditingDate] = {
         score: sleepScore,
         deep: deep,
@@ -302,6 +308,10 @@
         light: light,
         awake: awake
       };
+      
+      // Save the updated data to localStorage
+      localStorage.setItem('sleepDataStore', JSON.stringify(sleepDataStore));
+      
       overlay.style.display = 'none';
       renderCalendar();
       centerCurrentDate();
