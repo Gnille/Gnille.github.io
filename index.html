@@ -86,12 +86,10 @@
       display: block;
       margin-top: 10px;
     }
-    /* Bigger numeric input fields */
     .overlay-content input {
       width: 100%;
-      padding: 10px;
+      padding: 5px;
       margin-top: 5px;
-      font-size: 24px;
     }
     .overlay-content .btn-group {
       display: flex;
@@ -102,7 +100,6 @@
       padding: 10px;
       width: 48%;
       cursor: pointer;
-      font-size: 18px;
     }
   </style>
 </head>
@@ -121,16 +118,16 @@
       <input type="number" id="sleepScore" min="1" max="100">
       
       <label>Deep Sleep Time (in minutes):</label>
-      <input type="number" id="deepSleep" placeholder="e.g., 137">
+      <input type="text" id="deepSleep" placeholder="e.g., 137">
       
       <label>REM Sleep Time (in minutes):</label>
-      <input type="number" id="remSleep" placeholder="e.g., 095">
+      <input type="text" id="remSleep" placeholder="e.g., 095">
       
       <label>Light Sleep Time (in minutes):</label>
-      <input type="number" id="lightSleep" placeholder="e.g., 210">
+      <input type="text" id="lightSleep" placeholder="e.g., 210">
       
       <label>Awake Time (in minutes):</label>
-      <input type="number" id="awakeTime" placeholder="e.g., 045">
+      <input type="text" id="awakeTime" placeholder="e.g., 045">
       
       <div class="btn-group">
         <button id="saveBtn">Save</button>
@@ -143,15 +140,9 @@
     // Initial date range: last 14 days and next 4 days
     let currentDaysBefore = 14;
     let currentDaysAfter = 4;
-    
-    // Use a variable for sleep data that we'll also store in localStorage.
-    let sleepDataStore = {};
-
-    // Try to load stored sleep data from localStorage, if available.
-    const storedData = localStorage.getItem('sleepDataStore');
-    if (storedData) {
-      sleepDataStore = JSON.parse(storedData);
-    }
+    // Object to store sleep data (keyed by date string)
+    // Data is stored as an object: { score, deep, rem, light, awake }
+    const sleepDataStore = {};
 
     const calendarGrid = document.getElementById('calendarGrid');
     const today = new Date();
@@ -191,7 +182,6 @@
       pastPlusCell.addEventListener('click', () => {
         currentDaysBefore += 7; // increase past range by 7 days
         renderCalendar();
-        centerCurrentDate();
       });
       calendarGrid.appendChild(pastPlusCell);
 
@@ -232,7 +222,7 @@
           });
           headerCell.appendChild(summaryDiv);
         }
-        // Add click listener on the header cell (but not on the summary) to open the sleep data form
+        // Add click listener on the header cell to open the sleep data form
         headerCell.addEventListener('click', () => {
           openSleepDataForm(d);
         });
@@ -247,7 +237,6 @@
       futurePlusCell.addEventListener('click', () => {
         currentDaysAfter += 4; // increase future range by 4 days
         renderCalendar();
-        centerCurrentDate();
       });
       calendarGrid.appendChild(futurePlusCell);
     }
@@ -292,7 +281,7 @@
       });
     });
 
-    // Save sleep data, store it in localStorage, and re-render the calendar
+    // Save sleep data and re-render the calendar
     saveBtn.addEventListener('click', () => {
       const sleepScore = sleepScoreInput.value;
       const deep = deepSleepInput.value;
@@ -300,7 +289,7 @@
       const light = lightSleepInput.value;
       const awake = awakeTimeInput.value;
       
-      // Store data as a structured object.
+      // Store data as a structured object instead of a single summary string.
       sleepDataStore[currentEditingDate] = {
         score: sleepScore,
         deep: deep,
@@ -308,35 +297,16 @@
         light: light,
         awake: awake
       };
-      
-      // Save the updated data to localStorage
-      localStorage.setItem('sleepDataStore', JSON.stringify(sleepDataStore));
-      
       overlay.style.display = 'none';
       renderCalendar();
-      centerCurrentDate();
     });
 
     cancelBtn.addEventListener('click', () => {
       overlay.style.display = 'none';
     });
 
-    // Center the calendar on the current date element
-    function centerCurrentDate() {
-      const container = document.querySelector('.calendar-container');
-      const currentElem = document.querySelector('.current-date');
-      if (container && currentElem) {
-        const containerWidth = container.offsetWidth;
-        const elemLeft = currentElem.offsetLeft;
-        const elemWidth = currentElem.offsetWidth;
-        const scrollPos = elemLeft + elemWidth / 2 - containerWidth / 2;
-        container.scrollLeft = scrollPos;
-      }
-    }
-
-    // Initial render and center the current date
+    // Initial render
     renderCalendar();
-    centerCurrentDate();
   </script>
 </body>
 </html>
